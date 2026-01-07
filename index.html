@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -43,8 +42,10 @@ button:hover { background:#3b5d8a; }
 
 <div class="container">
 
+  <!-- 年曆 -->
   <div id="calendar" class="calendar"></div>
 
+  <!-- 月曆 + 每日 -->
   <div class="layout">
     <div>
       <div id="monthView" class="month-view"></div>
@@ -52,11 +53,13 @@ button:hover { background:#3b5d8a; }
     <div class="panel">
       <h2 id="dayTitle">請點選日期</h2>
       <div id="dayTasks"></div>
+
       <h3>手動排程</h3>
       <div id="manualTasks"></div>
     </div>
   </div>
 
+  <!-- 任務 -->
   <div class="panel" style="margin-top:20px;">
     <h2>新增任務</h2>
     <input id="taskName" placeholder="任務名稱">
@@ -73,15 +76,17 @@ button:hover { background:#3b5d8a; }
 </div>
 
 <script>
+/* ========= 資料 ========= */
 const STORAGE = "AUTO_SCHEDULER_FINAL";
 let tasks = JSON.parse(localStorage.getItem(STORAGE) || "[]");
 let schedule = {};
-let selectedDate = null;
 
+/* ========= 儲存 ========= */
 function save() {
   localStorage.setItem(STORAGE, JSON.stringify(tasks));
 }
 
+/* ========= 年曆 ========= */
 const calendar = document.getElementById("calendar");
 const now = new Date();
 const YEAR = now.getFullYear();
@@ -94,6 +99,7 @@ for (let m = 1; m <= 12; m++) {
   calendar.appendChild(box);
 }
 
+/* ========= 月曆 ========= */
 function openMonth(year, month) {
   const mv = document.getElementById("monthView");
   mv.innerHTML = `<h2>${year} 年 ${month} 月</h2>`;
@@ -101,24 +107,26 @@ function openMonth(year, month) {
   const days = document.createElement("div");
   days.className = "days";
 
-  ["日","一","二","三","四","五","六"].forEach(w=>{
-    const d=document.createElement("div");
-    d.className="week"; d.textContent=w;
+  ["日","一","二","三","四","五","六"].forEach(w => {
+    const d = document.createElement("div");
+    d.className = "week";
+    d.textContent = w;
     days.appendChild(d);
   });
 
   const first = new Date(year, month-1, 1).getDay();
   const total = new Date(year, month, 0).getDate();
 
-  for (let i=0;i<first;i++) days.appendChild(document.createElement("div"));
+  for (let i = 0; i < first; i++) days.appendChild(document.createElement("div"));
 
-  for (let d=1; d<=total; d++) {
+  for (let d = 1; d <= total; d++) {
     const cell = document.createElement("div");
     cell.className = "day";
     cell.textContent = d;
-    const key = `${year}-${month}-${d}`;
 
+    const key = `${year}-${month}-${d}`;
     const count = schedule[key]?.length || 0;
+
     if (count) {
       const b = document.createElement("div");
       b.className = "badge";
@@ -126,68 +134,88 @@ function openMonth(year, month) {
       cell.appendChild(b);
     }
 
-    cell.onclick = ()=>showDay(key);
+    cell.onclick = () => showDay(key);
     days.appendChild(cell);
   }
 
   mv.appendChild(days);
 }
 
+/* ========= 每日 ========= */
 function showDay(key) {
-  selectedDate = key;
-  const title = document.getElementById("dayTitle");
+  document.getElementById("dayTitle").textContent = "日程表：" + key;
   const list = document.getElementById("dayTasks");
   const manual = document.getElementById("manualTasks");
 
-  title.textContent = "日期：" + key;
   list.innerHTML = "";
   manual.innerHTML = "";
 
-  if (!schedule[key] || schedule[key].length === 0) {
+  if (!schedule[key]) schedule[key] = [];
+
+  if (schedule[key].length === 0) {
     list.innerHTML = "<div class='task unscheduled'>沒有任務</div>";
   } else {
-    schedule[key].forEach(t=>{
+    schedule[key].forEach(t => {
       const div = document.createElement("div");
-      div.className="task scheduled";
-      div.textContent = `${t.name}（${t.hours} 小時）`;
+      div.className = "task scheduled";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = t.done;
+      cb.onchange = () => {
+        t.done = cb.checked;
+        save();
+      };
+
       const del = document.createElement("button");
       del.textContent = "移除";
       del.className = "small-btn";
-      del.onclick = ()=>{
+      del.onclick = () => {
         t.date = null;
-        schedule[key] = schedule[key].filter(x=>x!==t);
+        schedule[key] = schedule[key].filter(x => x !== t);
         save();
         showDay(key);
+        openMonth(YEAR, now.getMonth()+1);
       };
+
+      div.appendChild(cb);
+      div.appendChild(document.createTextNode(` ${t.name}（${t.hours} 小時）`));
       div.appendChild(del);
       list.appendChild(div);
     });
   }
 
-  tasks.filter(t=>!t.date && !t.done).forEach(t=>{
-    const div=document.createElement("div");
-    div.className="task unscheduled";
+  tasks.filter(t => !t.date && !t.done).forEach(t => {
+    const div = document.createElement("div");
+    div.className = "task unscheduled";
     div.textContent = t.name;
-    const btn=document.createElement("button");
-    btn.textContent="排到這天";
-    btn.className="small-btn";
-    btn.onclick=()=>{
-      t.date=key;
-      schedule[key]=schedule[key]||[];
+
+    const btn = document.createElement("button");
+    btn.textContent = "排到這天";
+    btn.className = "small-btn";
+    btn.onclick = () => {
+      t.date = key;
       schedule[key].push(t);
       save();
       showDay(key);
+      openMonth(YEAR, now.getMonth()+1);
     };
+
     div.appendChild(btn);
     manual.appendChild(div);
   });
 }
 
+/* ========= 任務 ========= */
 function addTask() {
   const name = taskName.value.trim();
   const hours = Number(taskHours.value);
   const deadline = taskDeadline.value;
-  if (!name || !hours || !deadline) return alert("請填完整");
+
+  if (!name || !hours || !deadline) {
+    alert("請填寫完整資料");
+    return;
+  }
 
   tasks.push({ name, hours, deadline, date:null, done:false });
   save();
@@ -196,31 +224,33 @@ function addTask() {
 
 function renderTasks() {
   const list = document.getElementById("taskList");
-  list.innerHTML="";
-  tasks.forEach(t=>{
-    const div=document.createElement("div");
-    div.className="task " + (t.done?"scheduled":"unscheduled");
+  list.innerHTML = "";
+
+  tasks.forEach(t => {
+    const div = document.createElement("div");
+    div.className = "task " + (t.done ? "scheduled" : "unscheduled");
     div.textContent = `${t.name}（截止 ${t.deadline}）`;
     list.appendChild(div);
   });
 }
 
+/* ========= 自動排程 ========= */
 function autoSchedule() {
   schedule = {};
-  tasks.forEach(t=>{ if(!t.done) t.date=null; });
+  tasks.forEach(t => { if (!t.done) t.date = null; });
 
-  const sorted = tasks.filter(t=>!t.done)
-    .sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
+  const sorted = tasks.filter(t => !t.done)
+    .sort((a,b) => new Date(a.deadline) - new Date(b.deadline));
 
   let day = new Date();
 
-  sorted.forEach(t=>{
+  sorted.forEach(t => {
     const limit = new Date(t.deadline);
     while (day <= limit) {
       const key = `${day.getFullYear()}-${day.getMonth()+1}-${day.getDate()}`;
       if (!schedule[key]) {
-        schedule[key]=[t];
-        t.date=key;
+        schedule[key] = [t];
+        t.date = key;
         break;
       }
       day.setDate(day.getDate()+1);
@@ -228,10 +258,17 @@ function autoSchedule() {
   });
 
   save();
-  renderTasks();
   openMonth(YEAR, now.getMonth()+1);
   alert("自動排程完成");
 }
+
+/* ========= 初始化 ========= */
+renderTasks();
+openMonth(YEAR, now.getMonth()+1);
+</script>
+
+</body>
+</html>
 
 renderTasks();
 openMonth(YEAR, now.getMonth()+1);
